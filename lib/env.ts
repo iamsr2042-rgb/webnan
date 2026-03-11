@@ -10,6 +10,9 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL environment variable is not set');
 }
 
+// JWT Secret for token signing
+export const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
+
 // Security configuration
 export const sessionSecret = process.env.SESSION_SECRET || 'dev-secret-change-in-production';
 
@@ -21,12 +24,17 @@ export const cookieConfig = {
   maxAge: 60 * 60 * 24 * 7, // 7 days
 };
 
+// JWT Token expiry times
+export const JWT_ACCESS_TOKEN_EXPIRES = 15 * 60; // 15 minutes
+export const JWT_REFRESH_TOKEN_EXPIRES = 7 * 24 * 60 * 60; // 7 days
+
 // SSL mode for PostgreSQL
 export const postgresSSLMode = isProduction ? 'require' : 'prefer';
 
 console.log('[v0] Environment loaded:', {
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: databaseUrl ? '***' : 'NOT SET',
+  JWT_SECRET: jwtSecret ? '***' : 'NOT SET',
   isProduction,
   isDevelopment,
 });

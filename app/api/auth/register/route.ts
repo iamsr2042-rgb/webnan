@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, generateJWT } from "@/lib/auth";
 import { requireDatabaseConnection } from "@/lib/db-health";
+import { cookieConfig, jwtSecret, JWT_ACCESS_TOKEN_EXPIRES, JWT_REFRESH_TOKEN_EXPIRES } from "@/lib/env";
 import { z } from "zod";
 
 const registerSchema = z.object({
@@ -69,7 +70,23 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] ✓ User registered successfully - ID:", user.id);
 
-    return NextResponse.json(
+    // Generate JWT tokens
+    const accessToken = generateJWT(
+      { userId: user.id, email: user.email, role: user.role },
+      jwtSecret,
+      JWT_ACCESS_TOKEN_EXPIRES
+    );
+
+    const refreshToken = generateJWT(
+      { userId: user.id, type: "refresh" },
+      jwtSecret,
+      JWT_REFRESH_TOKEN_EXPIRES
+    );
+
+    console.log("[v0] JWT tokens generated");
+
+    // Create response with user data
+    const response = NextResponse.json(
       {
         message: "Account created successfully! You can now login with your credentials.",
         user: {
@@ -81,6 +98,24 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
+
+    // Set secure HTTP-only cookies with JWT tokens
+    response.cookies.set({
+      name: "access_token",
+      value: accessToken,
+      ...cookieConfig,
+      maxAge: JWT_ACCESS_TOKEN_EXPIRES,
+    });
+
+    response.cookies.set({
+      name: "refresh_token",
+      value: refreshToken,
+      ...cookieConfig,
+      maxAge: JWT_REFRESH_TOKEN_EXPIRES,
+    });
+
+    console.log("[v0] JWT cookies set with secure config");
+    return response;
   } catch (error) {
     console.error("[v0] ✗ Registration error:", error);
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCredentials } from "@/lib/auth";
+import { verifyCredentials, generateJWT } from "@/lib/auth";
 import { requireDatabaseConnection } from "@/lib/db-health";
-import { cookieConfig } from "@/lib/env";
+import { cookieConfig, jwtSecret, JWT_ACCESS_TOKEN_EXPIRES, JWT_REFRESH_TOKEN_EXPIRES } from "@/lib/env";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -48,6 +48,21 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] ✓ Login successful - User ID:", user.id);
 
+    // Generate JWT tokens
+    const accessToken = generateJWT(
+      { userId: user.id, email: user.email, role: user.role },
+      jwtSecret,
+      JWT_ACCESS_TOKEN_EXPIRES
+    );
+
+    const refreshToken = generateJWT(
+      { userId: user.id, type: "refresh" },
+      jwtSecret,
+      JWT_REFRESH_TOKEN_EXPIRES
+    );
+
+    console.log("[v0] JWT tokens generated");
+
     // Create response with user data
     const response = NextResponse.json(
       {
@@ -62,14 +77,22 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
 
-    // Set secure HTTP-only cookie using production config
+    // Set secure HTTP-only cookies with JWT tokens
     response.cookies.set({
-      name: "auth-token",
-      value: user.id,
+      name: "access_token",
+      value: accessToken,
       ...cookieConfig,
+      maxAge: JWT_ACCESS_TOKEN_EXPIRES,
     });
 
-    console.log("[v0] Auth cookie set with secure config");
+    response.cookies.set({
+      name: "refresh_token",
+      value: refreshToken,
+      ...cookieConfig,
+      maxAge: JWT_REFRESH_TOKEN_EXPIRES,
+    });
+
+    console.log("[v0] JWT cookies set with secure config");
     return response;
   } catch (error) {
     console.error("[v0] ✗ Login error:", error);

@@ -181,7 +181,27 @@ export async function GET(request: NextRequest) {
 // POST create new product (admin only)
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add admin authentication check
+    // Check admin authentication
+    const { verifyJWT } = await import("@/lib/auth");
+    const { jwtSecret } = await import("@/lib/env");
+    
+    const accessToken = request.cookies.get("access_token")?.value;
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const payload = verifyJWT(accessToken, jwtSecret);
+    if (!payload || payload.role !== "ADMIN") {
+      console.warn("[v0] Non-admin user attempted to create product");
+      return NextResponse.json(
+        { error: "Forbidden - admin access required" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     const validation = productSchema.safeParse(body);
@@ -196,6 +216,7 @@ export async function POST(request: NextRequest) {
       data: validation.data as any,
     });
 
+    console.log("[v0] ✓ Product created:", product.id);
     return NextResponse.json(
       { message: "Product created successfully", product },
       { status: 201 }

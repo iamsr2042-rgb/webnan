@@ -8,9 +8,18 @@ import { LogOut, Package, Download, Calendar, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+interface Product {
+  id: string;
+  title: string;
+  price: number;
+  description: string;
+  category: string;
+}
+
 interface Order {
   id: string;
   productId?: string;
+  product?: Product;
   amount: number;
   paymentStatus: string;
   deliveryStatus: string;
@@ -33,21 +42,42 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
-      router.push('/login');
-      return;
-    }
-
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
-
-    // TODO: Fetch orders from API
-    setIsLoading(false);
+    fetchUserData();
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const fetchUserData = async () => {
+    try {
+      // Fetch user info from auth endpoint
+      const userRes = await fetch('/api/auth/me');
+      if (!userRes.ok) {
+        router.push('/login');
+        return;
+      }
+
+      const userData = await userRes.json();
+      setUser(userData.user);
+
+      // Fetch user's orders
+      const ordersRes = await fetch('/api/orders/user');
+      if (ordersRes.ok) {
+        const ordersData = await ordersRes.json();
+        setOrders(ordersData.orders);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    setUser(null);
     router.push('/');
   };
 
@@ -118,9 +148,10 @@ export default function DashboardPage() {
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border">
                   <tr>
-                    <th className="px-4 py-3 text-muted-foreground font-semibold">Order ID</th>
+                    <th className="px-4 py-3 text-muted-foreground font-semibold">Product</th>
                     <th className="px-4 py-3 text-muted-foreground font-semibold">Amount</th>
-                    <th className="px-4 py-3 text-muted-foreground font-semibold">Status</th>
+                    <th className="px-4 py-3 text-muted-foreground font-semibold">Payment Status</th>
+                    <th className="px-4 py-3 text-muted-foreground font-semibold">Delivery Status</th>
                     <th className="px-4 py-3 text-muted-foreground font-semibold">Date</th>
                     <th className="px-4 py-3 text-muted-foreground font-semibold">Action</th>
                   </tr>
@@ -129,26 +160,39 @@ export default function DashboardPage() {
                   {orders.map((order) => (
                     <tr key={order.id} className="border-b border-border hover:bg-secondary/50">
                       <td className="px-4 py-3">
-                        <code className="text-xs font-mono">{order.id.slice(0, 8)}...</code>
+                        <div>
+                          <p className="font-semibold">{order.product?.title || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{order.product?.category}</p>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="flex items-center space-x-1">
                           <DollarSign className="h-4 w-4" />
-                          <span>{order.amount}</span>
+                          <span>${order.amount}</span>
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
                           <div
                             className={`h-2 w-2 rounded-full ${
-                              order.paymentStatus === 'COMPLETED' ? 'bg-accent' : 'bg-muted'
+                              order.paymentStatus === 'COMPLETED' ? 'bg-green-500' : order.paymentStatus === 'FAILED' ? 'bg-red-500' : 'bg-yellow-500'
                             }`}
                           ></div>
-                          <span className="text-sm">{order.paymentStatus}</span>
+                          <span className="text-sm text-xs">{order.paymentStatus}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="flex items-center space-x-1 text-muted-foreground">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`h-2 w-2 rounded-full ${
+                              order.deliveryStatus === 'DELIVERED' ? 'bg-green-500' : 'bg-yellow-500'
+                            }`}
+                          ></div>
+                          <span className="text-sm text-xs">{order.deliveryStatus}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex items-center space-x-1 text-muted-foreground text-xs">
                           <Calendar className="h-4 w-4" />
                           <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                         </span>

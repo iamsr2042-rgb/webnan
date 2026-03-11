@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ArrowLeft, Trash2, Edit2, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 export default function ProductsAdmin() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function ProductsAdmin() {
   const [products, setProducts] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -24,53 +27,141 @@ export default function ProductsAdmin() {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
-      router.push('/login');
-      return;
-    }
-    setUser(JSON.parse(userData));
-    loadProducts();
+    fetchUserAndProducts();
   }, [router]);
 
-  const loadProducts = () => {
-    // Load demo products
-    const demoProducts = [
-      { id: '1', title: 'E-Commerce Platform', description: 'Full-featured e-commerce solution', price: 2999, category: 'E-Commerce' },
-      { id: '2', title: 'SaaS Dashboard', description: 'Responsive SaaS dashboard template', price: 1499, category: 'Dashboard' },
-      { id: '3', title: 'Booking System', description: 'Complete appointment booking system', price: 1899, category: 'Booking' },
-    ];
-    setProducts(demoProducts);
+  const fetchUserAndProducts = async () => {
+    try {
+      // Check if user is authenticated and is admin
+      const userRes = await fetch('/api/auth/me');
+      if (!userRes.ok) {
+        router.push('/login');
+        return;
+      }
+
+      const userData = await userRes.json();
+      setUser(userData.user);
+
+      // Check if user is admin
+      if (userData.user.role !== 'ADMIN') {
+        router.push('/dashboard');
+        return;
+      }
+
+      // Fetch products
+      const productsRes = await fetch('/api/products?limit=100');
+      if (productsRes.ok) {
+        const data = await productsRes.json();
+        setProducts(data.products);
+      }
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAddProduct = () => {
-    if (!formData.title || !formData.price) {
-      alert('Title and price are required');
+  const handleAddProduct = async () => {
+    if (!formData.title || !formData.price || !formData.description) {
+      toast.error('Title, price, and description are required');
       return;
     }
 
-    if (editingId) {
-      setProducts(products.map(p => p.id === editingId ? { ...formData, id: editingId } : p));
-      setEditingId(null);
-    } else {
-      setProducts([...products, { ...formData, id: Date.now().toString() }]);
-    }
+    setIsSaving(true);
+    try {
+      const endpoint = editingId
+        ? `/api/products/${editingId}/update`
+        : '/api/products';
+      
+      const method = editingId ? 'PUT' : 'POST';
 
-    setFormData({ title: '', description: '', price: '', category: '' });
-    setShowForm(false);
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          category: formData.category,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to save product');
+        return;
+      }
+
+      const data = await response.json();
+      
+      if (editingId) {
+        setProducts(products.map(p => p.id === editingId ? data.product : p));
+        toast.success('Product updated successfully');
+      } else {
+        setProducts([...products, data.product]);
+        toast.success('Product created successfully');
+      }
+
+      setFormData({ title: '', description: '', price: '', category: '' });
+      setEditingId(null);
+      setShowForm(false);
+    } catch (error) {
+      console.error('Error saving product:', error);
+      toast.error('Failed to save product');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEdit = (product: any) => {
-    setFormData(product);
+    setFormData({
+      title: product.title,
+      description: product.description,
+      price: product.price.toString(),
+      category: product.category,
+    });
     setEditingId(product.id);
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this product?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/products/${id}/delete`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to delete product');
+        return;
+      }
+
       setProducts(products.filter(p => p.id !== id));
+      toast.success('Product deleted successfully');
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('Failed to delete product');
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading admin panel...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!user) return null;
 
@@ -105,7 +196,7 @@ export default function ProductsAdmin() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Description *</label>
                 <Textarea
                   placeholder="Product description"
                   value={formData.description}
@@ -136,6 +227,8 @@ export default function ProductsAdmin() {
                     <option value="Booking">Booking</option>
                     <option value="CRM">CRM</option>
                     <option value="Blog">Blog</option>
+                    <option value="Landing Page">Landing Page</option>
+                    <option value="Admin Panel">Admin Panel</option>
                   </select>
                 </div>
               </div>
@@ -143,8 +236,8 @@ export default function ProductsAdmin() {
                 <Button variant="outline" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', category: '' }); }}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddProduct} className="bg-primary hover:bg-primary/90">
-                  {editingId ? 'Update Product' : 'Add Product'}
+                <Button onClick={handleAddProduct} disabled={isSaving} className="bg-primary hover:bg-primary/90">
+                  {isSaving ? 'Saving...' : editingId ? 'Update Product' : 'Add Product'}
                 </Button>
               </div>
             </div>
@@ -163,23 +256,31 @@ export default function ProductsAdmin() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {products.map((product) => (
-                <tr key={product.id} className="hover:bg-secondary/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-foreground">{product.title}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{product.category || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-foreground font-semibold">${product.price}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleEdit(product)} className="flex items-center gap-1">
-                        <Edit2 className="h-3 w-3" /> Edit
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDelete(product.id)} className="flex items-center gap-1 text-destructive hover:text-destructive">
-                        <Trash2 className="h-3 w-3" /> Delete
-                      </Button>
-                    </div>
+              {products.length > 0 ? (
+                products.map((product) => (
+                  <tr key={product.id} className="hover:bg-secondary/50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-foreground">{product.title}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">{product.category || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-foreground font-semibold">${product.price}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(product)} className="flex items-center gap-1">
+                          <Edit2 className="h-3 w-3" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(product.id)} className="flex items-center gap-1 text-destructive hover:text-destructive">
+                          <Trash2 className="h-3 w-3" /> Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                    No products found. Create your first product!
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
