@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, generateJWT } from "@/lib/auth";
 import { requireDatabaseConnection } from "@/lib/db-health";
 import { cookieConfig, jwtSecret, JWT_ACCESS_TOKEN_EXPIRES, JWT_REFRESH_TOKEN_EXPIRES } from "@/lib/env";
+import { createRateLimiter, getClientIp, RATE_LIMITS, getRateLimitHeaders } from "@/lib/rate-limit";
 import { z } from "zod";
 
 const registerSchema = z.object({
@@ -15,6 +16,24 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[v0] === REGISTRATION REQUEST ===");
     console.log("[v0] Timestamp:", new Date().toISOString());
+
+    // Apply rate limiting
+    const clientIp = getClientIp(request);
+    const rateLimitKey = `register:${clientIp}`;
+    const rateLimit = createRateLimiter(rateLimitKey, RATE_LIMITS.AUTH);
+
+    if (!rateLimit.isAllowed) {
+      console.warn("[v0] Rate limit exceeded for IP:", clientIp);
+      const response = NextResponse.json(
+        { error: "Too many registration attempts. Please try again later." },
+        { status: 429 }
+      );
+      response.headers.set('Retry-After', Math.ceil((rateLimit.resetTime - Date.now()) / 1000).toString());
+      Object.entries(getRateLimitHeaders(rateLimit.remaining, rateLimit.resetTime)).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      return response;
+    }
     
     // Require database connection - fail fast if DB is down
     await requireDatabaseConnection();
@@ -115,6 +134,12 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("[v0] JWT cookies set with secure config");
+
+    // Add rate limit headers to response
+    Object.entries(getRateLimitHeaders(rateLimit.remaining, rateLimit.resetTime)).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
     return response;
   } catch (error) {
     console.error("[v0] ✗ Registration error:", error);
