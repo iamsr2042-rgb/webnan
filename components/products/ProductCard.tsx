@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, ShoppingCart } from 'lucide-react';
+import { ExternalLink, ShoppingCart, Eye } from 'lucide-react';
 import { useState } from 'react';
 
 interface Product {
@@ -97,16 +97,30 @@ export function ProductCard({ product }: ProductCardProps) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <div>
-            <p className="text-xs text-muted-foreground">Price</p>
-            <p className="text-2xl font-bold text-primary">${product.price}</p>
+        <div className="flex flex-col gap-2 pt-2 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Price</p>
+              <p className="text-2xl font-bold text-primary">${product.price}</p>
+            </div>
+
+            <Link href={`/products/${product.id}`}>
+              <Button size="sm" className="bg-primary hover:bg-primary/90">
+                <ShoppingCart className="h-4 w-4 mr-1" />
+                Buy
+              </Button>
+            </Link>
           </div>
 
-          <Link href={`/products/${product.id}`}>
-            <Button size="sm" className="bg-primary hover:bg-primary/90">
-              <ShoppingCart className="h-4 w-4 mr-1" />
-              Buy Now
+          {/* Preview Button */}
+          <Link href={`/preview/${product.id}`} className="w-full">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              Live Preview
             </Button>
           </Link>
         </div>
