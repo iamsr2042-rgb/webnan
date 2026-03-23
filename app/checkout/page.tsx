@@ -3,10 +3,11 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, Check, DollarSign, CreditCard } from 'lucide-react';
+import { AlertCircle, Loader2, Check, DollarSign, CreditCard, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { DEMO_MODE } from '@/lib/demo';
 
 interface Product {
   id: string;
@@ -30,6 +31,7 @@ function CheckoutContent() {
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'sslcommerz'>('stripe');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode] = useState(DEMO_MODE);
 
   useEffect(() => {
     if (productId) {
@@ -61,6 +63,16 @@ function CheckoutContent() {
     try {
       setIsProcessing(true);
       setError(null);
+
+      // In demo mode, simulate payment success
+      if (isDemoMode) {
+        console.log('[v0] Demo mode - simulating payment...');
+        // Simulate payment processing delay
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // Redirect to success page
+        router.push(`/checkout/success?order=${Date.now()}`);
+        return;
+      }
 
       if (paymentMethod === 'stripe') {
         // Create Stripe Payment Intent
@@ -201,9 +213,23 @@ function CheckoutContent() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Order Summary */}
-            <div className="rounded-lg border border-border bg-card p-6 space-y-6">
+          <div className="space-y-8">
+            {/* Demo Mode Warning */}
+            {isDemoMode && (
+              <div className="rounded-lg border border-yellow-400 bg-yellow-50 p-4 flex gap-4">
+                <AlertTriangle className="h-5 w-5 text-yellow-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-yellow-900">Demo Mode Active</p>
+                  <p className="text-sm text-yellow-800 mt-1">
+                    You are in demo mode. Payments are simulated and no real charges will be made. Use this environment to test the checkout flow.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Order Summary */}
+              <div className="rounded-lg border border-border bg-card p-6 space-y-6">
               <h2 className="text-xl font-bold text-foreground">Order Summary</h2>
 
               <div className="space-y-4">
@@ -308,6 +334,7 @@ function CheckoutContent() {
                   Your payment is secured with industry-standard encryption. We never store your card details.
                 </p>
               </div>
+            </div>
             </div>
           </div>
         )}
