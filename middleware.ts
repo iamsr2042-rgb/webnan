@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyJWT } from "@/lib/auth";
+import { verifyJWT } from "@/lib/jwt";
 
 // Get JWT secret from env (note: in middleware, we can use process.env directly)
 const jwtSecret = process.env.JWT_SECRET || "dev-jwt-secret-change-in-production";
