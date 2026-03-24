@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Check, Package, Clock, Shield, Tag } from 'lucide-react';
+import { ExternalLink, Check, Package, Clock, Shield, Tag, Eye, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -237,6 +237,30 @@ export default function ProductDetailPage() {
 
             {/* Demo & Action Buttons */}
             <div className="space-y-3">
+              {/* Demo Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <Link href={`/demo/${product.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <Button
+                    variant="outline"
+                    className="w-full border-primary text-primary hover:bg-primary/5"
+                    size="lg"
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Frontend Demo
+                  </Button>
+                </Link>
+                <Link href={`/demo/${product.title.toLowerCase().replace(/\s+/g, '-')}/admin`}>
+                  <Button
+                    variant="outline"
+                    className="w-full border-primary text-primary hover:bg-primary/5"
+                    size="lg"
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    Admin Demo
+                  </Button>
+                </Link>
+              </div>
+
               {product.demoUrl && (
                 <a href={product.demoUrl} target="_blank" rel="noopener noreferrer">
                   <Button
